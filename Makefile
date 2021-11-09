@@ -1,5 +1,5 @@
 build:
-	go build -o main .
+	go build -o bin/go-getir .
 	go vet
 	go fmt
 	golint
