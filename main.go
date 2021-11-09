@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -90,7 +91,8 @@ func logger(w http.ResponseWriter, r *http.Request) {
 
 func handleRequests() {
 	http.HandleFunc("/", logger)
-	e := http.ListenAndServe(":8085", nil)
+	p := os.Getenv("PORT")
+	e := http.ListenAndServe(":"+p, nil)
 	log.Fatal(e)
 }
 
