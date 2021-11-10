@@ -23,7 +23,7 @@ type RecordsModel struct {
 // MongoHandlerResponse : handler response model
 type MongoHandlerResponse struct {
 	Code    int            `json:"code"`
-	Message string         `json:"message"`
+	Message string         `json:"msg"`
 	Records []RecordsModel `json:"records"`
 }
 

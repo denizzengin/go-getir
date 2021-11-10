@@ -2,38 +2,57 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
+	"os"
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	//"time"
 )
 
-// Mongo connection method
-func Mongo() {
-	//ctx, _ := context.WithTimeout(context.Background(), 10 * time.Second)
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(MongoDbAtlassURL))
+// SearchDbQuery : Mongo connection method
+func SearchDbQuery(filter MongoHandlerRequest) ([]Record, error) {
+	ctx, c := context.WithTimeout(context.Background(), 10*time.Second)
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(os.Getenv("MONGO_ATLAS_URL")))
+	defer client.Disconnect(ctx)
+	defer c()
 	if err != nil {
-		panic(err)
+		return nil, ErrMongoDbConnection
 	}
-	defer client.Disconnect(context.TODO())
+	err = client.Ping(ctx, nil)
 
-	r, e := client.ListDatabases(context.TODO(), bson.D{{}})
-
-	if e != nil {
-		fmt.Println("yes")
+	if err != nil {
+		log.Fatal(err)
+		return nil, ErrMongoDbConnection
 	}
 
-	for _, v := range r.Databases {
-		fmt.Println(v.Name)
+	db := client.Database(MongoDbName)
+	collection := db.Collection(MongoDbCollectionName)
+	if collection == nil {
+		return nil, ErrMongoDbConnection
 	}
+
+	// Filter fields parse date format
+	startDate, _ := time.Parse(DateTemplate, filter.StartDate)
+	endDate, _ := time.Parse(DateTemplate, filter.EndDate)
+	cursor, cError := collection.Find(ctx, bson.M{"createdAt": bson.M{"$gte": startDate, "$lt": endDate}, "totalCount": bson.M{"$gte": filter.MinCount, "$lt": filter.MaxCount}})
+	if cError != nil {
+		return nil, ErrMongoDbConnection
+	}
+
+	var records []Record
+	if err = cursor.All(ctx, &records); err != nil {
+		log.Fatal(err)
+		return nil, ErrMongoDbConnection
+	}
+
+	return records, nil
 }
 
 // Record response
 type Record struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty"`
-	Key        string             `bson:"key,omitempty"`
-	CreatedAt  string             `bson:"createdAt,omitempty"`
-	TotalCount int                `bson:"totalCount,omitempty"`
+	Key        string    `bson:"key,omitempty"`
+	CreatedAt  time.Time `bson:"createdAt,omitempty"`
+	TotalCount int       `bson:"totalCount,omitempty"`
 }

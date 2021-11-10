@@ -62,9 +62,40 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(e.Error()))
 		return
 	}
-
 	w.WriteHeader(http.StatusOK)
-	s, _ := json.Marshal(input)
+	responseCodes := newResponseCodeRegistry()
+	records, err := SearchDbQuery(input)
+	response := MongoHandlerResponse{}
+	if err != nil {
+		response.Code = int(responseCodes.Fail)
+		response.Message = e.Error()
+		s, _ := json.Marshal(response)
+		w.Write(s)
+		return
+	}
+
+	// Not found any record
+	if len(records) == 0 {
+		response.Code = int(responseCodes.RecordNotFound)
+		response.Message = RecordNotFoundMessage
+		s, _ := json.Marshal(response)
+		w.Write(s)
+		return
+	}
+
+	// Convert db object model to response model
+	recordsModel := make([]RecordsModel, len(records))
+	for i := 0; i < len(records); i++ {
+		recordsModel[i] = RecordsModel{
+			Key:        records[i].Key,
+			CreatedAt:  records[i].CreatedAt.Local(),
+			TotalCount: int64(records[i].TotalCount),
+		}
+	}
+	response.Records = recordsModel
+	response.Code = int(responseCodes.Fail)
+	response.Message = SuccessMessage
+	s, _ := json.Marshal(response)
 	w.Write(s)
 }
 
@@ -92,6 +123,10 @@ func logger(w http.ResponseWriter, r *http.Request) {
 func handleRequests() {
 	http.HandleFunc("/", logger)
 	p := os.Getenv("PORT")
+	if p == "" {
+		p = "8085"
+	}
+	fmt.Println(p)
 	e := http.ListenAndServe(":"+p, nil)
 	log.Fatal(e)
 }
